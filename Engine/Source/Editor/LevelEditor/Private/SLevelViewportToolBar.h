@@ -243,6 +243,10 @@ private:
 	FReply OnRealtimeWarningClicked();
 	EVisibility GetRealtimeWarningVisibility() const;
 
+	/** IdleZT: rotate Top ortho viewport axes by 90° CCW */
+	FReply OnIdleZTRotateTopOrtho90Clicked();
+	EVisibility GetIdleZTRotateTopOrthoButtonVisibility() const;
+
 	FText GetScalabilityWarningLabel() const;
 	EVisibility GetScalabilityWarningVisibility() const;
 	TSharedRef<SWidget> GetScalabilityWarningMenuContent() const;

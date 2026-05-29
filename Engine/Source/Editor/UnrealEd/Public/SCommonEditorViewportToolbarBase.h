@@ -180,6 +180,11 @@ private:
 	/** Called to determine if we should show the realtime warning */
 	EVisibility GetRealtimeWarningVisibility() const;
 
+	/** IdleZT: rotate Top ortho viewport axes by 90° CCW */
+	FReply OnIdleZTRotateTopOrtho90Clicked();
+	/** Only show rotate button when this viewport is Top orthographic */
+	EVisibility GetIdleZTRotateTopOrthoButtonVisibility() const;
+
 protected:
 	// Merges the extender list from the host with the specified extender and returns the results
 	TSharedPtr<FExtender> GetCombinedExtenderList(TSharedRef<FExtender> MenuExtender) const;

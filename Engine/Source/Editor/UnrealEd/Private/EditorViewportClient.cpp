@@ -799,6 +799,61 @@ void FEditorViewportClient::CenterViewportAtPoint(const FVector& NewLookAt, bool
 
 
 //////////////////////////////////////////////////////////////////////////
+// IdleZT: Top ortho XY rotation — only rotate view right/down in the XY plane.
+// Row 2 must stay (0,0,-1) so the viewport remains Top (looking down -Z), not side view.
+// Do NOT use FRotationMatrix * DefaultTop; that rotates the forward axis and breaks Top ortho.
+static FMatrix MakeIdleZTTopOrthoViewRotationMatrix(uint8 QuarterTurns)
+{
+	const int32 Quarter = QuarterTurns & 3;
+	switch (Quarter)
+	{
+	default:
+	case 0:
+		// Default UE Top: +X right, +Y down on screen
+		return FMatrix(
+			FPlane(1.f, 0.f, 0.f, 0.f),
+			FPlane(0.f, -1.f, 0.f, 0.f),
+			FPlane(0.f, 0.f, -1.f, 0.f),
+			FPlane(0.f, 0.f, 0.f, 1.f));
+	case 1:
+		// 90°: +X up, +Y right (Row0 = -Y so +Y appears on screen right, not left)
+		return FMatrix(
+			FPlane(0.f, -1.f, 0.f, 0.f),
+			FPlane(-1.f, 0.f, 0.f, 0.f),
+			FPlane(0.f, 0.f, -1.f, 0.f),
+			FPlane(0.f, 0.f, 0.f, 1.f));
+	case 2:
+		// 180°
+		return FMatrix(
+			FPlane(-1.f, 0.f, 0.f, 0.f),
+			FPlane(0.f, 1.f, 0.f, 0.f),
+			FPlane(0.f, 0.f, -1.f, 0.f),
+			FPlane(0.f, 0.f, 0.f, 1.f));
+	case 3:
+		// 270°: +X down, +Y left
+		return FMatrix(
+			FPlane(0.f, 1.f, 0.f, 0.f),
+			FPlane(1.f, 0.f, 0.f, 0.f),
+			FPlane(0.f, 0.f, -1.f, 0.f),
+			FPlane(0.f, 0.f, 0.f, 1.f));
+	}
+}
+
+/** ViewRight / ViewDown rows of Top rotation matrix — used to map screen pan to world XY. */
+static void GetTopOrthoPanAxes(uint8 QuarterTurns, FVector& OutViewRight, FVector& OutViewDown)
+{
+	const FMatrix ViewMatrix = MakeIdleZTTopOrthoViewRotationMatrix(QuarterTurns);
+	OutViewRight = FVector(ViewMatrix.M[0][0], ViewMatrix.M[0][1], ViewMatrix.M[0][2]);
+	OutViewDown = FVector(ViewMatrix.M[1][0], ViewMatrix.M[1][1], ViewMatrix.M[1][2]);
+}
+
+void FEditorViewportClient::CycleTopOrthoQuarterTurns()
+{
+	TopOrthoQuarterTurns = (TopOrthoQuarterTurns + 1) & 3;
+	Invalidate();
+}
+
+//////////////////////////////////////////////////////////////////////////
 //
 // Configures the specified FSceneView object with the view and projection matrices for this viewport.
 
@@ -1041,11 +1096,7 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 
 			if (EffectiveViewportType == LVT_OrthoXY)
 			{
-				ViewInitOptions.ViewRotationMatrix = FMatrix(
-					FPlane(1, 0, 0, 0),
-					FPlane(0, -1, 0, 0),
-					FPlane(0, 0, -1, 0),
-					FPlane(0, 0, 0, 1));
+				ViewInitOptions.ViewRotationMatrix = MakeIdleZTTopOrthoViewRotationMatrix(TopOrthoQuarterTurns);
 			}
 			else if (EffectiveViewportType == LVT_OrthoXZ)
 			{
@@ -3354,7 +3405,13 @@ void FEditorViewportClient::OnOrthoZoom( const struct FInputEventState& InputSta
 		switch( GetViewportType() )
 		{
 		case LVT_OrthoXY:
-			OldOffsetFromCenter.Set(DeltaFromCenterX, -DeltaFromCenterY, 0.0f);
+			{
+				FVector ViewRight, ViewDown;
+				GetTopOrthoPanAxes(TopOrthoQuarterTurns, ViewRight, ViewDown);
+				OldOffsetFromCenter =
+					static_cast<float>(DeltaFromCenterX) * ViewRight
+					+ static_cast<float>(DeltaFromCenterY) * ViewDown;
+			}
 			break;
 		case LVT_OrthoXZ:
 			OldOffsetFromCenter.Set(DeltaFromCenterX, 0.0f, DeltaFromCenterY);
@@ -4213,7 +4270,16 @@ FVector FEditorViewportClient::TranslateDelta( FKey InKey, float InDelta, bool I
 
 			if( InNudge || bIgnoreOrthoScaling )
 			{
-				vec = FVector( X, Y, 0.f );
+				if( GetViewportType() == LVT_OrthoXY )
+				{
+					FVector ViewRight, ViewDown;
+					GetTopOrthoPanAxes(TopOrthoQuarterTurns, ViewRight, ViewDown);
+					vec = X * ViewRight + Y * ViewDown;
+				}
+				else
+				{
+					vec = FVector( X, Y, 0.f );
+				}
 			}
 			else
 			{
@@ -4225,7 +4291,13 @@ FVector FEditorViewportClient::TranslateDelta( FKey InKey, float InDelta, bool I
 					switch( GetViewportType() )
 					{
 					case LVT_OrthoXY:
-						vec.Y *= -1.0f;
+						{
+							FVector ViewRight, ViewDown;
+							GetTopOrthoPanAxes(TopOrthoQuarterTurns, ViewRight, ViewDown);
+							const float ScaledX = X * UnitsPerPixel;
+							const float ScaledY = Y * UnitsPerPixel;
+							vec = ScaledX * ViewRight + ScaledY * ViewDown;
+						}
 						break;
 					case LVT_OrthoXZ:
 						vec = FVector(X * UnitsPerPixel, 0.f, Y * UnitsPerPixel);
@@ -4382,7 +4454,13 @@ bool FEditorViewportClient::InputGesture(FViewport* InViewport, EGestureEvent Ge
 				switch (LevelViewportType)
 				{
 					case LVT_OrthoXY:
-						CurrentGestureDragDelta += FVector(-AdjustedGestureDelta.X, -AdjustedGestureDelta.Y, 0);
+						{
+							FVector ViewRight, ViewDown;
+							GetTopOrthoPanAxes(TopOrthoQuarterTurns, ViewRight, ViewDown);
+							CurrentGestureDragDelta +=
+								-AdjustedGestureDelta.X * ViewRight
+								+ (-AdjustedGestureDelta.Y) * ViewDown;
+						}
 						break;
 					case LVT_OrthoXZ:
 						CurrentGestureDragDelta += FVector(-AdjustedGestureDelta.X, 0, AdjustedGestureDelta.Y);

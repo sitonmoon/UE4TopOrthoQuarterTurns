@@ -968,6 +968,12 @@ public:
 	/** Returns true if this viewport is perspective. */
 	bool IsPerspective() const;
 
+	/** IdleZT: cycle Top ortho (LVT_OrthoXY) axis rotation by 90° CCW */
+	void CycleTopOrthoQuarterTurns();
+
+	/** Top ortho rotation quarter turns (0-3) */
+	uint8 GetTopOrthoQuarterTurns() const { return TopOrthoQuarterTurns; }
+
 	/** Is the aspect ratio currently constrained? */
 	virtual bool IsAspectRatioConstrained() const;
 
@@ -1539,6 +1545,9 @@ public:
 
 	/** The viewport type. */
 	ELevelViewportType		ViewportType;
+
+	/** Top ortho (LVT_OrthoXY) axis rotation in 90° steps (0-3) */
+	uint8 TopOrthoQuarterTurns = 0;
 
 	/** The viewport's scene view state. */
 	FSceneViewStateReference ViewState;

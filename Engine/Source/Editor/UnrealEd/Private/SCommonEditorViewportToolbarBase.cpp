@@ -20,6 +20,7 @@
 #include "SScalabilitySettings.h"
 #include "AssetEditorViewportLayout.h"
 #include "SAssetEditorViewport.h"
+#include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "SCommonEditorViewportToolbarBase"
 
@@ -97,6 +98,26 @@ void SCommonEditorViewportToolbarBase::Construct(const FArguments& InArgs, TShar
 			.Cursor(EMouseCursor::Default)
 			.ParentToolBar(SharedThis(this))
 			.OnGetMenuContent(this, &SCommonEditorViewportToolbarBase::GenerateShowMenu)
+		];
+
+	// IdleZT: Top ortho rotate 90° (only visible in Top orthographic viewport)
+	MainBoxPtr->AddSlot()
+		.AutoWidth()
+		.Padding(ToolbarSlotPadding)
+		[
+			SNew(SEditorViewportToolBarButton)
+			.Cursor(EMouseCursor::Default)
+			.ButtonType(EUserInterfaceActionType::Button)
+			.ButtonStyle(&FEditorStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.MenuButton"))
+			.OnClicked(this, &SCommonEditorViewportToolbarBase::OnIdleZTRotateTopOrtho90Clicked)
+			.Visibility(this, &SCommonEditorViewportToolbarBase::GetIdleZTRotateTopOrthoButtonVisibility)
+			.ToolTipText(LOCTEXT("IdleZT_RotateTop90_ToolTip", "Top 视图：绕 Z 轴逆时针旋转 90°（切换 X/Y 屏幕朝向）"))
+			.Content()
+			[
+				SNew(STextBlock)
+				.Font(FEditorStyle::GetFontStyle("EditorViewportToolBar.Font"))
+				.Text(LOCTEXT("IdleZT_RotateTop90", "旋转90°"))
+			]
 		];
 
 	// Realtime button
@@ -482,6 +503,20 @@ EVisibility SCommonEditorViewportToolbarBase::GetRealtimeWarningVisibility() con
 	FEditorViewportClient& ViewportClient = GetViewportClient();
 	// If the viewport is not realtime and there is no override then realtime is off
 	return !ViewportClient.IsRealtime() && !ViewportClient.IsRealtimeOverrideSet() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+FReply SCommonEditorViewportToolbarBase::OnIdleZTRotateTopOrtho90Clicked()
+{
+	GetViewportClient().CycleTopOrthoQuarterTurns();
+	return FReply::Handled();
+}
+
+EVisibility SCommonEditorViewportToolbarBase::GetIdleZTRotateTopOrthoButtonVisibility() const
+{
+	const FEditorViewportClient& ViewportClient = GetViewportClient();
+	return (ViewportClient.GetViewportType() == LVT_OrthoXY && ViewportClient.IsOrtho())
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
 }
 
 TSharedPtr<FExtender> SCommonEditorViewportToolbarBase::GetCombinedExtenderList(TSharedRef<FExtender> MenuExtender) const

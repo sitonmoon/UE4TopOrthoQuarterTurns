@@ -232,6 +232,24 @@ void SLevelViewportToolBar::Construct( const FArguments& InArgs )
 				.AutoWidth()
 				.Padding( ToolbarSlotPadding )
 				[
+					SNew(SEditorViewportToolBarButton)
+					.Cursor(EMouseCursor::Default)
+					.ButtonType(EUserInterfaceActionType::Button)
+					.ButtonStyle(&FEditorStyle::Get().GetWidgetStyle<FButtonStyle>("EditorViewportToolBar.MenuButton"))
+					.OnClicked(this, &SLevelViewportToolBar::OnIdleZTRotateTopOrtho90Clicked)
+					.Visibility(this, &SLevelViewportToolBar::GetIdleZTRotateTopOrthoButtonVisibility)
+					.ToolTipText(LOCTEXT("IdleZT_RotateTop90_ToolTip", "Top 视图：绕 Z 轴逆时针旋转 90°（切换 X/Y 屏幕朝向）"))
+					.Content()
+					[
+						SNew(STextBlock)
+						.Font(FEditorStyle::GetFontStyle("EditorViewportToolBar.Font"))
+						.Text(LOCTEXT("IdleZT_RotateTop90", "旋转90°"))
+					]
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding( ToolbarSlotPadding )
+				[
 
 					SNew( SEditorViewportToolbarMenu )
 					.Label( this, &SLevelViewportToolBar::GetViewModeOptionsMenuLabel )
@@ -1632,6 +1650,27 @@ EVisibility SLevelViewportToolBar::GetRealtimeWarningVisibility() const
 	FLevelEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
 	// If the viewport is not realtime and there is no override then realtime is off
 	return !ViewportClient.IsRealtime() && !ViewportClient.IsRealtimeOverrideSet() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+FReply SLevelViewportToolBar::OnIdleZTRotateTopOrtho90Clicked()
+{
+	if (Viewport.IsValid())
+	{
+		Viewport.Pin()->GetLevelViewportClient().CycleTopOrthoQuarterTurns();
+	}
+	return FReply::Handled();
+}
+
+EVisibility SLevelViewportToolBar::GetIdleZTRotateTopOrthoButtonVisibility() const
+{
+	if (!Viewport.IsValid())
+	{
+		return EVisibility::Collapsed;
+	}
+	const FLevelEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
+	return (ViewportClient.GetViewportType() == LVT_OrthoXY && ViewportClient.IsOrtho())
+		? EVisibility::Visible
+		: EVisibility::Collapsed;
 }
 
 FText SLevelViewportToolBar::GetScalabilityWarningLabel() const
